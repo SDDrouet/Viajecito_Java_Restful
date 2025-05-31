@@ -18,6 +18,13 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -88,16 +95,29 @@ public class VuelosFacadeREST extends AbstractFacade<Vuelos> {
     @Produces(MediaType.APPLICATION_JSON)
     public List<Vuelos> buscarPorCiudadesOrdenadoPorValorDesc(
             @QueryParam("origen") String ciudadOrigen,
-            @QueryParam("destino") String ciudadDestino) {
+            @QueryParam("destino") String ciudadDestino,
+            @QueryParam("horaSalida") String horaSalidaStr) throws ParseException {
+
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        Date inicio = sdf.parse(horaSalidaStr); // yyyy-MM-dd 00:00:00
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(inicio);
+        cal.set(Calendar.HOUR_OF_DAY, 23);
+        cal.set(Calendar.MINUTE, 59);
+        cal.set(Calendar.SECOND, 59);
+        cal.set(Calendar.MILLISECOND, 999);
+        Date fin = cal.getTime();
 
         return em.createQuery(
-                "SELECT v FROM Vuelos v WHERE v.idCiudadOrigen.codigoCiudad = :origen AND v.idCiudadDestino.codigoCiudad = :destino ORDER BY v.valor DESC",
+                "SELECT v FROM Vuelos v WHERE v.idCiudadOrigen.codigoCiudad = :origen AND v.idCiudadDestino.codigoCiudad = :destino " +
+                "AND v.horaSalida BETWEEN :inicio AND :fin ORDER BY v.valor DESC",
                 Vuelos.class)
                 .setParameter("origen", ciudadOrigen)
                 .setParameter("destino", ciudadDestino)
+                .setParameter("inicio", inicio)
+                .setParameter("fin", fin)
                 .getResultList();
     }
-
 
     @Override
     protected EntityManager getEntityManager() {

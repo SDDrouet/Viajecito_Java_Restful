@@ -58,3 +58,7 @@ VALUES
 ('VUE006', 3, 2, 80.25, '2025-06-17 13:20:00', 100, 100),
 ('VUE007', 1, 4, 450.75, '2025-06-18 23:45:00', 200, 200),
 ('VUE008', 4, 1, 475.50, '2025-06-19 05:30:00', 200, 200);
+
+
+INSERT INTO usuarios (nombre, username, password, telefono)
+VALUES ('MONSTER', 'MONSTER', 'MONSTER9', '0987654321');

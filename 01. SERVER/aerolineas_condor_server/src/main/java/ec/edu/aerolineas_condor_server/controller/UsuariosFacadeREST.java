@@ -16,6 +16,7 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import java.util.List;
 
@@ -80,6 +81,21 @@ public class UsuariosFacadeREST extends AbstractFacade<Usuarios> {
     @Produces(MediaType.TEXT_PLAIN)
     public String countREST() {
         return String.valueOf(super.count());
+    }
+    
+    @GET
+    @Path("login")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Usuarios login(@QueryParam("username") String username, @QueryParam("password") String password) {
+        try {
+            return em.createQuery("SELECT u FROM Usuarios u WHERE u.username = :username AND u.password = :password", Usuarios.class)
+                     .setParameter("username", username)
+                     .setParameter("password", password)
+                     .getSingleResult();
+        } catch (Exception e) {
+            // Si no se encuentra el usuario, retorna null
+            return null;
+        }
     }
 
     @Override
