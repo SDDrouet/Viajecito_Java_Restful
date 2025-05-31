@@ -38,15 +38,4 @@ public class BoletosController {
             client.close();
         }
     }
-
-
-    public Boleto findBoleto(String id) {
-        BoletosClient client = new BoletosClient();
-        try {
-            Boleto boleto = client.find(Boleto.class, id);
-            return boleto;
-        } finally {
-            client.close();
-        }
-    }
 }

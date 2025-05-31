@@ -24,13 +24,4 @@ public class VuelosController {
             client.close();
         }
     }
-
-    public Vuelo obtenerVueloPorId(String id) {
-        VuelosClient client = new VuelosClient();
-        try {
-            return client.find(Vuelo.class, id);
-        } finally {
-            client.close();
-        }
-    }
 }
