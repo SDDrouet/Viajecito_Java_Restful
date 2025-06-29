@@ -36,7 +36,9 @@ import java.util.Collection;
     @NamedQuery(name = "Usuarios.findByNombre", query = "SELECT u FROM Usuarios u WHERE u.nombre = :nombre"),
     @NamedQuery(name = "Usuarios.findByUsername", query = "SELECT u FROM Usuarios u WHERE u.username = :username"),
     @NamedQuery(name = "Usuarios.findByPassword", query = "SELECT u FROM Usuarios u WHERE u.password = :password"),
-    @NamedQuery(name = "Usuarios.findByTelefono", query = "SELECT u FROM Usuarios u WHERE u.telefono = :telefono")})
+    @NamedQuery(name = "Usuarios.findByTelefono", query = "SELECT u FROM Usuarios u WHERE u.telefono = :telefono"),
+    @NamedQuery(name = "Usuarios.findByCedula", query = "SELECT u FROM Usuarios u WHERE u.cedula = :cedula"),
+    @NamedQuery(name = "Usuarios.findByCorreo", query = "SELECT u FROM Usuarios u WHERE u.correo = :correo")})
 public class Usuarios implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -63,6 +65,18 @@ public class Usuarios implements Serializable {
     @Size(max = 15)
     @Column(name = "telefono")
     private String telefono;
+    @Basic(optional = false)
+    @NotNull
+    @Size(min = 1, max = 20)
+    @Column(name = "cedula")
+    private String cedula;
+    @Basic(optional = false)
+    @NotNull
+    @Size(min = 1, max = 150)
+    @Column(name = "correo")
+    private String correo;
+    @OneToMany(cascade = CascadeType.ALL, mappedBy = "idUsuario")
+    private Collection<Facturas> facturasCollection;
     @OneToMany(cascade = CascadeType.ALL, mappedBy = "idUsuario")
     private Collection<Boletos> boletosCollection;
 
@@ -73,11 +87,13 @@ public class Usuarios implements Serializable {
         this.idUsuario = idUsuario;
     }
 
-    public Usuarios(Integer idUsuario, String nombre, String username, String password) {
+    public Usuarios(Integer idUsuario, String nombre, String username, String password, String cedula, String correo) {
         this.idUsuario = idUsuario;
         this.nombre = nombre;
         this.username = username;
         this.password = password;
+        this.cedula = cedula;
+        this.correo = correo;
     }
 
     public Integer getIdUsuario() {
@@ -118,6 +134,32 @@ public class Usuarios implements Serializable {
 
     public void setTelefono(String telefono) {
         this.telefono = telefono;
+    }
+
+    public String getCedula() {
+        return cedula;
+    }
+
+    public void setCedula(String cedula) {
+        this.cedula = cedula;
+    }
+
+    public String getCorreo() {
+        return correo;
+    }
+
+    public void setCorreo(String correo) {
+        this.correo = correo;
+    }
+
+    @XmlTransient
+    @JsonbTransient
+    public Collection<Facturas> getFacturasCollection() {
+        return facturasCollection;
+    }
+
+    public void setFacturasCollection(Collection<Facturas> facturasCollection) {
+        this.facturasCollection = facturasCollection;
     }
 
     @XmlTransient

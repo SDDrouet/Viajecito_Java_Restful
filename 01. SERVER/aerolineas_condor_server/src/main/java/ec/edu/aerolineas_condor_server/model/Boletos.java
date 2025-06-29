@@ -4,6 +4,7 @@
  */
 package ec.edu.aerolineas_condor_server.model;
 
+import jakarta.json.bind.annotation.JsonbTransient;
 import jakarta.persistence.Basic;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -58,6 +59,9 @@ public class Boletos implements Serializable {
     @NotNull
     @Column(name = "precio_compra")
     private BigDecimal precioCompra;
+    @JoinColumn(name = "id_factura", referencedColumnName = "id_factura")
+    @ManyToOne
+    private Facturas idFactura;
     @JoinColumn(name = "id_usuario", referencedColumnName = "id_usuario")
     @ManyToOne(optional = false)
     private Usuarios idUsuario;
@@ -108,6 +112,15 @@ public class Boletos implements Serializable {
 
     public void setPrecioCompra(BigDecimal precioCompra) {
         this.precioCompra = precioCompra;
+    }
+
+    @JsonbTransient
+    public Facturas getIdFactura() {
+        return idFactura;
+    }
+
+    public void setIdFactura(Facturas idFactura) {
+        this.idFactura = idFactura;
     }
 
     public Usuarios getIdUsuario() {

@@ -4,46 +4,68 @@
  */
 package ec.edu.viajecito.model;
 
+import java.util.List;
+
 /**
  *
  * @author Drouet
  */
 public class CompraBoletoRequest {
-    public Integer idVuelo;
-    public Integer idUsuario;
-    public int cantidad;
+    private int idUsuario;
+    private List<VueloCompra> vuelos;
+    private boolean esCredito;
+    private int numeroCuotas;
+    private double tasaInteresAnual;
 
     public CompraBoletoRequest() {
     }
 
-    public CompraBoletoRequest(Integer idVuelo, Integer idUsuario, int cantidad) {
-        this.idVuelo = idVuelo;
+    public CompraBoletoRequest(int idUsuario, List<VueloCompra> vuelos, boolean esCredito, int numeroCuotas, double tasaInteresAnual) {
         this.idUsuario = idUsuario;
-        this.cantidad = cantidad;
+        this.vuelos = vuelos;
+        this.esCredito = esCredito;
+        this.numeroCuotas = numeroCuotas;
+        this.tasaInteresAnual = tasaInteresAnual;
     }
 
-    public Integer getIdVuelo() {
-        return idVuelo;
-    }
-
-    public void setIdVuelo(Integer idVuelo) {
-        this.idVuelo = idVuelo;
-    }
-
-    public Integer getIdUsuario() {
+    public int getIdUsuario() {
         return idUsuario;
     }
 
-    public void setIdUsuario(Integer idUsuario) {
+    public void setIdUsuario(int idUsuario) {
         this.idUsuario = idUsuario;
     }
 
-    public int getCantidad() {
-        return cantidad;
+    public List<VueloCompra> getVuelos() {
+        return vuelos;
     }
 
-    public void setCantidad(int cantidad) {
-        this.cantidad = cantidad;
+    public void setVuelos(List<VueloCompra> vuelos) {
+        this.vuelos = vuelos;
+    }
+
+    public boolean isEsCredito() {
+        return esCredito;
+    }
+
+    public void setEsCredito(boolean esCredito) {
+        this.esCredito = esCredito;
+    }
+
+    public int getNumeroCuotas() {
+        return numeroCuotas;
+    }
+
+    public void setNumeroCuotas(int numeroCuotas) {
+        this.numeroCuotas = numeroCuotas;
+    }
+
+    public double getTasaInteresAnual() {
+        return tasaInteresAnual;
+    }
+
+    public void setTasaInteresAnual(double tasaInteresAnual) {
+        this.tasaInteresAnual = tasaInteresAnual;
     }
     
     

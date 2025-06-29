@@ -7,13 +7,14 @@ package ec.edu.viajecito.client;
 import jakarta.ws.rs.ClientErrorException;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.WebTarget;
+import jakarta.ws.rs.core.GenericType;
 
 /**
- * Jersey REST client generated for REST resource:UsuariosFacadeREST
- * [usuarios]<br>
+ * Jersey REST client generated for REST resource:AmortizacionBoletosFacadeREST
+ * [amortizacion]<br>
  * USAGE:
  * <pre>
- *        UsuariosClient client = new UsuariosClient();
+ *        AmortizacionClient client = new AmortizacionClient();
  *        Object response = client.XXX(...);
  *        // do whatever with response
  *        client.close();
@@ -21,33 +22,23 @@ import jakarta.ws.rs.client.WebTarget;
  *
  * @author Drouet
  */
-public class UsuariosClient {
+public class AmortizacionClient {
 
     private WebTarget webTarget;
     private Client client;
     private static final String BASE_URI = "http://localhost:8080/aerolineas_condor_server/api";
 
-    public UsuariosClient() {
+    public AmortizacionClient() {
         client = jakarta.ws.rs.client.ClientBuilder.newClient();
-        webTarget = client.target(BASE_URI).path("usuarios");
+        webTarget = client.target(BASE_URI).path("amortizacion");
     }
 
-    public void create(Object requestEntity) throws ClientErrorException {
-        webTarget.request(jakarta.ws.rs.core.MediaType.APPLICATION_JSON).post(jakarta.ws.rs.client.Entity.entity(requestEntity, jakarta.ws.rs.core.MediaType.APPLICATION_JSON));
-    }
-    
-    public <T> T login(Class<T> responseType, String password, String username) throws ClientErrorException {
+    public <T> T obtenerPorFactura(GenericType<T> responseType, String idFactura) throws ClientErrorException {
         WebTarget resource = webTarget;
-        if (password != null) {
-            resource = resource.queryParam("password", password);
-        }
-        if (username != null) {
-            resource = resource.queryParam("username", username);
-        }
-        resource = resource.path("login");
+        resource = resource.path(java.text.MessageFormat.format("factura/{0}", new Object[]{idFactura}));
         return resource.request(jakarta.ws.rs.core.MediaType.APPLICATION_JSON).get(responseType);
     }
-
+  
     public void close() {
         client.close();
     }

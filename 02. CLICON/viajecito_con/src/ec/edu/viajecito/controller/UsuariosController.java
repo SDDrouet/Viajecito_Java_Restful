@@ -17,19 +17,6 @@ public class UsuariosController {
         }
     }
 
-    public boolean actualizarUsuario(String id, Usuario usuario) {
-        UsuariosClient client = new UsuariosClient();
-        try {
-            client.edit(usuario, id);
-            return true;
-        } catch (ClientErrorException e) {
-            return false;
-        } finally {
-            client.close();
-        }
-    }
-
-    
     public Usuario login(String username, String password) {
         UsuariosClient client = new UsuariosClient();
         try {

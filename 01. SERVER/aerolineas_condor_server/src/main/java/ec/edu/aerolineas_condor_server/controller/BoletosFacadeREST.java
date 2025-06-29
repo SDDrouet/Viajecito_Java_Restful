@@ -6,8 +6,11 @@ package ec.edu.aerolineas_condor_server.controller;
 
 import ec.edu.aerolineas_condor_server.model.Boletos;
 import ec.edu.aerolineas_condor_server.model.CompraBoletoRequest;
+import ec.edu.aerolineas_condor_server.model.Facturas;
 import ec.edu.aerolineas_condor_server.model.Usuarios;
+import ec.edu.aerolineas_condor_server.model.VueloCompra;
 import ec.edu.aerolineas_condor_server.model.Vuelos;
+import ec.edu.aerolineas_condor_server.model.Amortizacion;
 import jakarta.ejb.Stateless;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -23,6 +26,9 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -96,50 +102,104 @@ public class BoletosFacadeREST extends AbstractFacade<Boletos> {
     @Produces(MediaType.APPLICATION_JSON)
     @Transactional
     public Response comprarBoletos(CompraBoletoRequest request) {
-        Vuelos vuelo = em.find(Vuelos.class, request.idVuelo);
-        Usuarios usuario = em.find(Usuarios.class, request.idUsuario);
-
-        if (vuelo == null || usuario == null) {
-            return Response.status(Response.Status.BAD_REQUEST).entity("Vuelo o usuario no encontrado").build();
-        }
-
-        if (vuelo.getDisponibles() < request.cantidad) {
-            return Response.status(Response.Status.BAD_REQUEST).entity("No hay suficientes asientos disponibles").build();
-        }
-        
-        // Obtener la cantidad actual de boletos para ese vuelo
-        Long count = em.createQuery(
-            "SELECT COUNT(b) FROM Boletos b WHERE b.idVuelo.idVuelo = :idVuelo", Long.class)
-            .setParameter("idVuelo", vuelo.getIdVuelo())
-            .getSingleResult();
-
-        long numeroSecuencial = count + 1;
-        String idVueloFormato = String.format("%08d", vuelo.getIdVuelo());
-    
-
         try {
-            for (int i = 0; i < request.cantidad; i++) {
-                Boletos boleto = new Boletos();
+            double totalSinIVA = 0.0;
 
-                // Crear número de boleto con el formato requerido
-                String numeroSecuenciaFormato = String.format("%03d", numeroSecuencial++);
-                String numeroBoleto = idVueloFormato + "-" + numeroSecuenciaFormato;
-                boleto.setNumeroBoleto(numeroBoleto);
-                
-                boleto.setFechaCompra(new Date());
-                boleto.setPrecioCompra(vuelo.getValor());
-                boleto.setIdUsuario(usuario);
-                boleto.setIdVuelo(vuelo);
-                em.persist(boleto);
+            // Validación y cálculo de total sin IVA
+            for (VueloCompra vc : request.getVuelos()) {
+                Vuelos vuelo = em.find(Vuelos.class, vc.getIdVuelo());
+                if (vuelo == null || vuelo.getDisponibles() < vc.getCantidad()) {
+                    return Response.status(Response.Status.BAD_REQUEST)
+                        .entity("Vuelo no encontrado o sin cupos suficientes").build();
+                }
+                totalSinIVA += vuelo.getValor().doubleValue() * vc.getCantidad();
             }
 
-            vuelo.setDisponibles(vuelo.getDisponibles() - request.cantidad);
-            em.merge(vuelo);
+            double totalConIVA = totalSinIVA * 1.15;
+            Usuarios usuario = em.find(Usuarios.class, request.getIdUsuario());
+            if (usuario == null) {
+                return Response.status(Response.Status.BAD_REQUEST).entity("Usuario no encontrado").build();
+            }
+
+            // Generar número de factura
+            Long maxFacturaId = em.createQuery("SELECT COALESCE(MAX(f.idFactura), 0) FROM Facturas f", Long.class).getSingleResult();
+            String numeroFactura = "FAC-" + String.format("%09d", maxFacturaId + 1);
+
+            // Crear factura
+            Facturas factura = new Facturas();
+            factura.setNumeroFactura(numeroFactura);
+            factura.setIdUsuario(usuario);
+            factura.setPrecioSinIva(BigDecimal.valueOf(totalSinIVA));
+            factura.setPrecioConIva(BigDecimal.valueOf(totalConIVA));
+            factura.setFechaFactura(new Date());
+            em.persist(factura);
+            em.flush(); // Para obtener ID generado
+
+            // Si es a crédito, generar tabla amortización
+            if (request.isEsCredito()) {
+                List<Amortizacion> tabla = GenerarTablaAmortizacion(totalConIVA, request.getTasaInteresAnual(), request.getNumeroCuotas(), factura);
+                for (Amortizacion a : tabla) {
+                    a.setIdFactura(factura);
+                    em.persist(a);
+                }
+            }
+
+            // Insertar boletos y actualizar vuelos
+            for (VueloCompra vc : request.getVuelos()) {
+                Vuelos vuelo = em.find(Vuelos.class, vc.getIdVuelo());
+
+                for (int i = 0; i < vc.getCantidad(); i++) {
+                    Boletos boleto = new Boletos();
+                    boleto.setNumeroBoleto(UUID.randomUUID().toString().substring(0, 10).toUpperCase());
+                    boleto.setIdUsuario(usuario);
+                    boleto.setIdVuelo(vuelo);
+                    boleto.setPrecioCompra(vuelo.getValor());
+                    boleto.setFechaCompra(new Date());
+                    boleto.setIdFactura(factura);
+                    em.persist(boleto);
+                }
+
+                vuelo.setDisponibles(vuelo.getDisponibles() - vc.getCantidad());
+                em.merge(vuelo);
+            }
+            
+            em.flush(); // Asegura que todos los cambios se escriban
+            em.refresh(factura); // Refresca la factura desde la BD
 
             return Response.ok("Compra realizada con éxito").build();
-        } catch (PersistenceException e) {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity("Error al guardar los boletos. Puede que se haya generado un número duplicado.").build();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity("Error en la compra: " + e.getMessage()).build();
         }
+    }
+    
+    private List<Amortizacion> GenerarTablaAmortizacion(double monto, double tasaAnual, int cuotas, Facturas factura) {
+        List<Amortizacion> lista = new ArrayList<>();
+
+        BigDecimal saldo = BigDecimal.valueOf(monto);
+        double tasaMensual = tasaAnual / 12 / 100;
+
+        BigDecimal cuota = saldo.multiply(BigDecimal.valueOf(tasaMensual))
+            .divide(BigDecimal.valueOf(1 - Math.pow(1 + tasaMensual, -cuotas)), 10, RoundingMode.HALF_UP);
+
+        for (int i = 1; i <= cuotas; i++) {
+            BigDecimal interes = saldo.multiply(BigDecimal.valueOf(tasaMensual));
+            BigDecimal capital = cuota.subtract(interes);
+            saldo = saldo.subtract(capital);
+
+            Amortizacion a = new Amortizacion();
+            a.setIdFactura(factura);
+            a.setNumeroCuota(i);
+            a.setValorCuota(cuota.setScale(2, RoundingMode.HALF_UP));
+            a.setInteresPagado(interes.setScale(2, RoundingMode.HALF_UP));
+            a.setCapitalPagado(capital.setScale(2, RoundingMode.HALF_UP));
+            a.setSaldo(saldo.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP));
+
+            lista.add(a);
+        }
+
+        return lista;
     }
     
     @GET

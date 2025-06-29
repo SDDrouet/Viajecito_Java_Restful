@@ -16,6 +16,16 @@ public class VuelosController {
         }
     }
     
+    public Vuelo obtenerVueloPorId(String idVuelo) {
+        VuelosClient client = new VuelosClient();
+        try {
+            Vuelo factura = client.find(Vuelo.class, idVuelo);
+            return factura;
+        } finally {
+            client.close();
+        }
+    }
+    
     public List<Vuelo> obtenerVuelosPorCiudad(String origen, String destino, String horaSalida) {
         VuelosClient client = new VuelosClient();
         try {

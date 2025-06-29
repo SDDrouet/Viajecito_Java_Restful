@@ -48,12 +48,17 @@ public class VuelosClient {
         resource = resource.path("buscar");
         return resource.request(jakarta.ws.rs.core.MediaType.APPLICATION_JSON).get(responseType);
     }
+    
+    public <T> T find(Class<T> responseType, String id) throws ClientErrorException {
+        WebTarget resource = webTarget;
+        resource = resource.path(java.text.MessageFormat.format("{0}", new Object[]{id}));
+        return resource.request(jakarta.ws.rs.core.MediaType.APPLICATION_JSON).get(responseType);
+    }
 
     public <T> T findAll(GenericType<T> responseType) throws ClientErrorException {
         WebTarget resource = webTarget;
         return resource.request(jakarta.ws.rs.core.MediaType.APPLICATION_JSON).get(responseType);
     }
-
 
     public void close() {
         client.close();

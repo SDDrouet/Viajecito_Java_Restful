@@ -5,8 +5,11 @@
 package ec.edu.viajecito.model;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Date;
 
 /**
  *
@@ -18,23 +21,22 @@ public class Boleto {
     private String numeroBoleto;
     private String fechaCompra;
     private BigDecimal precioCompra;
-    @JsonAlias("idUsuario")
-    private Usuario usuario;
-    @JsonAlias("idVuelo")
-    private Vuelo vuelo;
+    private Usuario idUsuario;
+    private Vuelo idVuelo;
+    private Factura idFactura;
 
     // Constructor por defecto
     public Boleto() {
     }
 
     // Constructor con todos los campos
-    public Boleto(Integer idBoleto, String numeroBoleto, String fechaCompra, BigDecimal precioCompra, Usuario usuario, Vuelo vuelo) {
+    public Boleto(Integer idBoleto, String numeroBoleto, String fechaCompra, BigDecimal precioCompra, Usuario usuario, Vuelo vuelo, Factura factura) {
         this.idBoleto = idBoleto;
         this.numeroBoleto = numeroBoleto;
         this.fechaCompra = fechaCompra;
         this.precioCompra = precioCompra;
-        this.usuario = usuario;
-        this.vuelo = vuelo;
+        this.idUsuario = usuario;
+        this.idVuelo = vuelo;
     }
 
     // Getters y Setters
@@ -54,8 +56,20 @@ public class Boleto {
         this.numeroBoleto = numeroBoleto;
     }
 
-    public String getFechaCompra() {
-        return fechaCompra;
+    public Date getFechaCompra() {
+        if (fechaCompra == null || fechaCompra.isBlank()) return null;
+
+        try {
+            // Eliminar el sufijo [UTC] para que el parser no falle
+            String cleaned = fechaCompra.replace("[UTC]", "");
+
+            // Parsear con formato compatible
+            Instant instant = Instant.parse(cleaned);
+            return Date.from(instant);
+        } catch (Exception e) {
+            System.err.println("Error al parsear fechaFactura: " + e.getMessage());
+            return null;
+        }
     }
 
     public void setFechaCompra(String fechaCompra) {
@@ -70,19 +84,28 @@ public class Boleto {
         this.precioCompra = precioCompra;
     }
 
-    public Usuario getUsuario() {
-        return usuario;
+    public Usuario getIdUsuario() {
+        return idUsuario;
     }
 
-    public void setUsuario(Usuario usuario) {
-        this.usuario = usuario;
+    public void setIdUsuario(Usuario idUsuario) {
+        this.idUsuario = idUsuario;
     }
 
-    public Vuelo getVuelo() {
-        return vuelo;
+    public Vuelo getIdVuelo() {
+        return idVuelo;
     }
 
-    public void setVuelo(Vuelo vuelo) {
-        this.vuelo = vuelo;
+    public void setIdVuelo(Vuelo idVuelo) {
+        this.idVuelo = idVuelo;
     }
+
+    public Factura getIdFactura() {
+        return idFactura;
+    }
+
+    public void setIdFactura(Factura idFactura) {
+        this.idFactura = idFactura;
+    }
+    
 }
