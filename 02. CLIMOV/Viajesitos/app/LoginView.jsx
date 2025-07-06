@@ -1,33 +1,106 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   TextInput,
   Button,
   Text,
   StyleSheet,
-  Platform,
-  KeyboardAvoidingView,
   Image,
   TouchableOpacity,
-  Modal
+  Platform,
+  KeyboardAvoidingView,
+  Modal,
+  BackHandler
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { crearUsuario } from './controllers/UsuarioController';
+import { login } from '../app/controllers/UsuarioController';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function RegisterView() {
+export default function LoginView() {
   const router = useRouter();
-  const [nombre, setNombre] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [telefono, setTelefono] = useState('');
   const [secure, setSecure] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [irARegistro, setIrARegistro] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [esExito, setEsExito] = useState(false);
+  const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
+  const [hasReloaded, setHasReloaded] = useState(false);
 
-  const handleRegister = async () => {
-    if (!nombre.trim() || !username.trim() || !password.trim() || !telefono.trim()) {
+  const passwordRef = useRef(null);
+
+  // Función para recarga simulada
+const recargarUnaVez = async () => {
+  try {
+    const yaSeRecargoKey = 'app_reloaded_session';
+    const yaSeRecargo = await AsyncStorage.getItem(yaSeRecargoKey);
+
+    if (!yaSeRecargo) {
+      await AsyncStorage.setItem(yaSeRecargoKey, 'true');
+      await AsyncStorage.clear();
+    }
+
+    resetearEstadoCompleto();
+    setHasReloaded(true);
+  } catch (error) {
+    console.error('Error en recarga:', error);
+    resetearEstadoCompleto();
+    setHasReloaded(true);
+  }
+};
+
+
+
+  const resetearEstadoCompleto = () => {
+    setUsername('');
+    setPassword('');
+    setSecure(true);
+    setLoading(false);
+    setIrARegistro(false);
+    setModalVisible(false);
+    setMensaje('');
+    setEsExito(false);
+    setUsuarioAutenticado(null);
+  };
+
+  useEffect(() => {
+    recargarUnaVez();
+  }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (hasReloaded) {
+        resetearEstadoCompleto();
+      }
+    }, [hasReloaded])
+  );
+
+  useEffect(() => {
+    const backAction = () => true;
+    const handler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => handler.remove();
+  }, []);
+
+  if (!hasReloaded) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <Image source={require('../assets/images/logo_monster.png')} style={styles.logo} />
+        <Text style={[styles.title, { marginTop: 20 }]}>Inicializando aplicación...</Text>
+        <Text style={{ color: '#888', marginTop: 10 }}>Por favor espera</Text>
+      </View>
+    );
+  }
+
+  if (irARegistro) {
+    const RegisterView = require('./RegisterView').default;
+    return <RegisterView volver={() => setIrARegistro(false)} />;
+  }
+
+  const handleLogin = async () => {
+    if (!username.trim() || !password.trim()) {
       setMensaje('⚠️ Todos los campos son obligatorios');
       setEsExito(false);
       setModalVisible(true);
@@ -36,33 +109,26 @@ export default function RegisterView() {
 
     setLoading(true);
     try {
-      const success = await crearUsuario({
-        idUsuario: 0,
-        nombre: nombre.trim(),
-        username: username.trim(),
-        password: password.trim(),
-        telefono: telefono.trim()
-      });
+      const user = await login(username.trim(), password.trim());
 
-      if (success === true) {
-        setMensaje('✅ Registro exitoso. Ya puedes iniciar sesión.');
+      if (user && user.IdUsuario) {
+        await AsyncStorage.clear();
+        await AsyncStorage.setItem('idUsuario', user.IdUsuario.toString());
+        setMensaje(`✅ Bienvenido ${user.Nombre}`);
+        setUsuarioAutenticado(user);
         setEsExito(true);
       } else {
-        setMensaje('❌ El usuario ya está registrado o ocurrió un error.');
+        setMensaje('❌ Usuario o contraseña incorrectos');
         setEsExito(false);
       }
     } catch (error) {
-      setMensaje('❌ Error de conexión o del servidor.');
+      console.error('❌ Error de login:', error);
+      setMensaje('❌ Error al conectar con el servidor');
       setEsExito(false);
     } finally {
       setLoading(false);
       setModalVisible(true);
     }
-  };
-
-  const volverAlLogin = () => {
-    setModalVisible(false);
-    if (esExito) router.replace('/LoginView');
   };
 
   return (
@@ -71,17 +137,7 @@ export default function RegisterView() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Image source={require('../assets/images/logo_monster.png')} style={styles.logo} />
-      <Text style={styles.title}>Crear cuenta</Text>
-
-      <View style={styles.inputWrapper}>
-        <TextInput
-          style={styles.input}
-          placeholder="Nombre completo"
-          value={nombre}
-          onChangeText={setNombre}
-          placeholderTextColor="#888"
-        />
-      </View>
+      <Text style={styles.title}>MONSTER - Viajecitos SA.</Text>
 
       <View style={styles.inputWrapper}>
         <TextInput
@@ -91,11 +147,15 @@ export default function RegisterView() {
           onChangeText={setUsername}
           placeholderTextColor="#888"
           autoCapitalize="none"
+          returnKeyType="next"
+          onSubmitEditing={() => passwordRef.current?.focus()}
+          blurOnSubmit={false}
         />
       </View>
 
       <View style={styles.inputWrapper}>
         <TextInput
+          ref={passwordRef}
           style={styles.input}
           placeholder="Contraseña"
           secureTextEntry={secure}
@@ -103,35 +163,26 @@ export default function RegisterView() {
           onChangeText={setPassword}
           placeholderTextColor="#888"
           autoCapitalize="none"
+          returnKeyType="done"
+          onSubmitEditing={handleLogin}
         />
         <TouchableOpacity onPress={() => setSecure(!secure)} style={styles.toggle}>
           <Text style={styles.toggleText}>{secure ? 'Mostrar' : 'Ocultar'}</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.inputWrapper}>
-        <TextInput
-          style={styles.input}
-          placeholder="Teléfono"
-          keyboardType="phone-pad"
-          value={telefono}
-          onChangeText={setTelefono}
-          placeholderTextColor="#888"
-        />
-      </View>
-
       <View style={styles.buttonContainer}>
         <Button
-          title={loading ? 'Registrando...' : 'REGISTRAR'}
+          title={loading ? 'Ingresando...' : 'INGRESAR'}
           color="#5fb4a2"
-          onPress={handleRegister}
+          onPress={handleLogin}
           disabled={loading}
         />
       </View>
 
-      <TouchableOpacity onPress={() => router.replace('/LoginView')} style={{ marginTop: 16 }}>
+      <TouchableOpacity onPress={() => setIrARegistro(true)} style={{ marginTop: 16 }}>
         <Text style={{ color: '#4e88a9', fontWeight: '500' }}>
-          ¿Ya tienes cuenta? Inicia sesión
+          ¿No tienes cuenta? Regístrate
         </Text>
       </TouchableOpacity>
 
@@ -147,7 +198,20 @@ export default function RegisterView() {
               {mensaje}
             </Text>
             <TouchableOpacity
-              onPress={volverAlLogin}
+              onPress={() => {
+                setModalVisible(false);
+                if (esExito && usuarioAutenticado) {
+                  setUsername('');
+                  setPassword('');
+                  router.replace({
+                    pathname: '/views/MenuView',
+                    params: {
+                      idUsuario: usuarioAutenticado.IdUsuario,
+                      nombre: usuarioAutenticado.Nombre
+                    }
+                  });
+                }
+              }}
               style={styles.modalButton}
             >
               <Text style={{ color: '#fff', fontWeight: 'bold' }}>Aceptar</Text>

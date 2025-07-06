@@ -5,36 +5,51 @@ import {
   Button,
   Text,
   StyleSheet,
-  Image,
-  TouchableOpacity,
   Platform,
   KeyboardAvoidingView,
+  Image,
+  TouchableOpacity,
   Modal
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { login } from '../app/controllers/UsuarioController';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { crearUsuario } from './controllers/UsuarioController';
 
-export default function LoginView() {
+function validarCorreo(correo) {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(correo);
+}
+
+export default function RegisterView() {
   const router = useRouter();
+  const [nombre, setNombre] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [cedula, setCedula] = useState('');
+  const [correo, setCorreo] = useState('');
   const [secure, setSecure] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [irARegistro, setIrARegistro] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [esExito, setEsExito] = useState(false);
-  const [usuarioAutenticado, setUsuarioAutenticado] = useState(null);
 
-  if (irARegistro) {
-    const RegisterView = require('./RegisterView').default;
-    return <RegisterView volver={() => setIrARegistro(false)} />;
-  }
-
-  const handleLogin = async () => {
-    if (!username.trim() || !password.trim()) {
+  const handleRegister = async () => {
+    if (!nombre.trim() || !username.trim() || !password.trim() || !telefono.trim() || !cedula.trim() || !correo.trim()) {
       setMensaje('⚠️ Todos los campos son obligatorios');
+      setEsExito(false);
+      setModalVisible(true);
+      return;
+    }
+
+    if (!/^[0-9]{10}$/.test(telefono.trim())) {
+      setMensaje('⚠️ El teléfono debe tener 10 dígitos');
+      setEsExito(false);
+      setModalVisible(true);
+      return;
+    }
+
+    if (!validarCorreo(correo.trim())) {
+      setMensaje('⚠️ Formato de correo no válido');
       setEsExito(false);
       setModalVisible(true);
       return;
@@ -42,27 +57,35 @@ export default function LoginView() {
 
     setLoading(true);
     try {
-      const user = await login(username.trim(), password.trim());
+      const success = await crearUsuario({
+        IdUsuario: 0,
+        Nombre: nombre.trim(),
+        Username: username.trim(),
+        Password: password.trim(),
+        Telefono: telefono.trim(),
+        Cedula: cedula.trim(),
+        Correo: correo.trim()
+      });
 
-      if (user && user.idUsuario) {
-        await AsyncStorage.clear();
-        await AsyncStorage.setItem('idUsuario', user.idUsuario.toString());
-
-        setMensaje(`✅ Bienvenido ${user.nombre}`);
-        setUsuarioAutenticado(user);
+      if (success === true) {
+        setMensaje('✅ Registro exitoso. Ya puedes iniciar sesión.');
         setEsExito(true);
       } else {
-        setMensaje('❌ Usuario o contraseña incorrectos');
+        setMensaje('❌ El usuario ya está registrado o ocurrió un error.');
         setEsExito(false);
       }
     } catch (error) {
-      console.error('❌ Error de login:', error);
-      setMensaje('❌ Error al conectar con el servidor');
+      setMensaje('❌ Error de conexión o del servidor.');
       setEsExito(false);
     } finally {
       setLoading(false);
       setModalVisible(true);
     }
+  };
+
+  const volverAlLogin = () => {
+    setModalVisible(false);
+    if (esExito) router.replace('/LoginView');
   };
 
   return (
@@ -71,7 +94,17 @@ export default function LoginView() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Image source={require('../assets/images/logo_monster.png')} style={styles.logo} />
-      <Text style={styles.title}>MONSTER - VIAJESITOS</Text>
+      <Text style={styles.title}>Crear cuenta</Text>
+
+      <View style={styles.inputWrapper}>
+        <TextInput
+          style={styles.input}
+          placeholder="Nombre completo"
+          value={nombre}
+          onChangeText={setNombre}
+          placeholderTextColor="#888"
+        />
+      </View>
 
       <View style={styles.inputWrapper}>
         <TextInput
@@ -99,18 +132,56 @@ export default function LoginView() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.inputWrapper}>
+        <TextInput
+          style={styles.input}
+          placeholder="Teléfono (10 dígitos)"
+          keyboardType="phone-pad"
+          value={telefono}
+          onChangeText={(text) => {
+            if (text.length <= 10 && /^[0-9]*$/.test(text)) setTelefono(text);
+          }}
+          placeholderTextColor="#888"
+        />
+      </View>
+
+      <View style={styles.inputWrapper}>
+        <TextInput
+          style={styles.input}
+          placeholder="Cédula"
+          keyboardType="number-pad"
+          value={cedula}
+          onChangeText={(text) => {
+            if (text.length <= 10 && /^[0-9]*$/.test(text)) setCedula(text);
+          }}
+          placeholderTextColor="#888"
+        />
+      </View>
+
+      <View style={styles.inputWrapper}>
+        <TextInput
+          style={styles.input}
+          placeholder="Correo electrónico"
+          keyboardType="email-address"
+          value={correo}
+          onChangeText={setCorreo}
+          placeholderTextColor="#888"
+          autoCapitalize="none"
+        />
+      </View>
+
       <View style={styles.buttonContainer}>
         <Button
-          title={loading ? 'Ingresando...' : 'INGRESAR'}
+          title={loading ? 'Registrando...' : 'REGISTRAR'}
           color="#5fb4a2"
-          onPress={handleLogin}
+          onPress={handleRegister}
           disabled={loading}
         />
       </View>
 
-      <TouchableOpacity onPress={() => setIrARegistro(true)} style={{ marginTop: 16 }}>
+      <TouchableOpacity onPress={() => router.replace('/LoginView')} style={{ marginTop: 16 }}>
         <Text style={{ color: '#4e88a9', fontWeight: '500' }}>
-          ¿No tienes cuenta? Regístrate
+          ¿Ya tienes cuenta? Inicia sesión
         </Text>
       </TouchableOpacity>
 
@@ -122,26 +193,8 @@ export default function LoginView() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <Text style={[styles.modalMessage, { color: esExito ? 'green' : 'red' }]}>
-              {mensaje}
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                setModalVisible(false);
-                if (esExito && usuarioAutenticado) {
-                  setUsername('');
-                  setPassword('');
-                  router.replace({
-                    pathname: '/views/MenuView',
-                    params: {
-                      idUsuario: usuarioAutenticado.idUsuario,
-                      nombre: usuarioAutenticado.nombre
-                    }
-                  });
-                }
-              }}
-              style={styles.modalButton}
-            >
+            <Text style={[styles.modalMessage, { color: esExito ? 'green' : 'red' }]}> {mensaje} </Text>
+            <TouchableOpacity onPress={volverAlLogin} style={styles.modalButton}>
               <Text style={{ color: '#fff', fontWeight: 'bold' }}>Aceptar</Text>
             </TouchableOpacity>
           </View>
