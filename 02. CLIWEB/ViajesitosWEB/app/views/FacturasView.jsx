@@ -171,6 +171,8 @@ const handleFacturaPress = async (idFactura, idUsuario) => {
 
 
 
+// En FacturasView, actualiza la función cargarDetallesBoletos para usar el mapa de ciudades:
+
 const cargarDetallesBoletos = async (boletos) => {
   try {
     // 👉 Normaliza a array si viene como objeto
@@ -180,22 +182,42 @@ const cargarDetallesBoletos = async (boletos) => {
       lista.map(async (boleto) => {
         try {
           const vuelo = await obtenerVueloPorId(boleto['a:IdVuelo']);
+          
           if (vuelo) {
-            const [ciudadOrigen, ciudadDestino] = await Promise.all([
-              obtenerCiudadPorId(vuelo['a:IdCiudadOrigen']),
-              obtenerCiudadPorId(vuelo['a:IdCiudadDestino']),
-            ]);
+            // 🔍 DEBUG: Ver qué IDs estamos recibiendo
+            console.log('🔍 Vuelo obtenido:', vuelo);
+            console.log('🏙️ ID Ciudad Origen:', vuelo['a:IdCiudadOrigen']);
+            console.log('🏙️ ID Ciudad Destino:', vuelo['a:IdCiudadDestino']);
+            
+            // Crear mapa de ciudades usando la lista ya cargada
+            const mapaCiudades = {};
+            ciudades.forEach((c) => {
+              // Intentar diferentes formas de acceder al ID y nombre
+              const id = c.id || c.idCiudad || c.IdCiudad;
+              const nombre = c.nombre || c.nombreCiudad || c.NombreCiudad;
+              if (id && nombre) {
+                mapaCiudades[id] = nombre;
+              }
+            });
+            
+            console.log('🗺️ Mapa de ciudades disponible:', mapaCiudades);
+            
+            // Buscar las ciudades en el mapa en lugar de hacer llamadas individuales
+            const idOrigen = vuelo['a:IdCiudadOrigen'] || vuelo.IdCiudadOrigen || vuelo.idCiudadOrigen;
+            const idDestino = vuelo['a:IdCiudadDestino'] || vuelo.IdCiudadDestino || vuelo.idCiudadDestino;
+            
             return {
               ...boleto,
               vuelo: vuelo,
-              ciudadOrigen: ciudadOrigen?.['a:NombreCiudad'] ?? 'Ciudad desconocida',
-              ciudadDestino: ciudadDestino?.['a:NombreCiudad'] ?? 'Ciudad desconocida',
+              ciudadOrigen: mapaCiudades[idOrigen] || `Ciudad ID ${idOrigen} no encontrada`,
+              ciudadDestino: mapaCiudades[idDestino] || `Ciudad ID ${idDestino} no encontrada`,
             };
           } else {
+            console.log('⚠️ No se pudo obtener el vuelo para boleto:', boleto);
             return {
               ...boleto,
-              ciudadOrigen: 'Ciudad desconocida',
-              ciudadDestino: 'Ciudad desconocida',
+              ciudadOrigen: 'Vuelo no encontrado',
+              ciudadDestino: 'Vuelo no encontrado',
             };
           }
         } catch (error) {
@@ -212,7 +234,6 @@ const cargarDetallesBoletos = async (boletos) => {
     setBoletosConDetalles(boletosConInfo);
   } catch (error) {
     console.error('Error general en cargarDetallesBoletos:', error);
-    // Aplica normalización también aquí
     const lista = Array.isArray(boletos) ? boletos : [boletos];
     setBoletosConDetalles(lista.map((b) => ({
       ...b,

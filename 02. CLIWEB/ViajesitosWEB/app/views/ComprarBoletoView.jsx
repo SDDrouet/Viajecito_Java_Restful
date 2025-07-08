@@ -883,7 +883,7 @@ const VueloItem = ({ vuelo }) => {
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.cuotasScroll}
                   >
-                    {[1, 3, 6, 12, 15, 24].map((cuota) => (
+                    {[3, 6, 12, 15].map((cuota) => (
                       <TouchableOpacity
                         key={cuota}
                         onPress={() => setNumeroCuotas(cuota)}

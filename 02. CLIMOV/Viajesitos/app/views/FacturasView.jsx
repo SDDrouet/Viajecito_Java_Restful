@@ -171,6 +171,8 @@ const handleFacturaPress = async (idFactura, idUsuario) => {
 
 
 
+// En FacturasView, actualiza la función cargarDetallesBoletos para usar el mapa de ciudades:
+
 const cargarDetallesBoletos = async (boletos) => {
   try {
     // 👉 Normaliza a array si viene como objeto
@@ -180,22 +182,42 @@ const cargarDetallesBoletos = async (boletos) => {
       lista.map(async (boleto) => {
         try {
           const vuelo = await obtenerVueloPorId(boleto['a:IdVuelo']);
+          
           if (vuelo) {
-            const [ciudadOrigen, ciudadDestino] = await Promise.all([
-              obtenerCiudadPorId(vuelo['a:IdCiudadOrigen']),
-              obtenerCiudadPorId(vuelo['a:IdCiudadDestino']),
-            ]);
+            // 🔍 DEBUG: Ver qué IDs estamos recibiendo
+            console.log('🔍 Vuelo obtenido:', vuelo);
+            console.log('🏙️ ID Ciudad Origen:', vuelo['a:IdCiudadOrigen']);
+            console.log('🏙️ ID Ciudad Destino:', vuelo['a:IdCiudadDestino']);
+            
+            // Crear mapa de ciudades usando la lista ya cargada
+            const mapaCiudades = {};
+            ciudades.forEach((c) => {
+              // Intentar diferentes formas de acceder al ID y nombre
+              const id = c.id || c.idCiudad || c.IdCiudad;
+              const nombre = c.nombre || c.nombreCiudad || c.NombreCiudad;
+              if (id && nombre) {
+                mapaCiudades[id] = nombre;
+              }
+            });
+            
+            console.log('🗺️ Mapa de ciudades disponible:', mapaCiudades);
+            
+            // Buscar las ciudades en el mapa en lugar de hacer llamadas individuales
+            const idOrigen = vuelo['a:IdCiudadOrigen'] || vuelo.IdCiudadOrigen || vuelo.idCiudadOrigen;
+            const idDestino = vuelo['a:IdCiudadDestino'] || vuelo.IdCiudadDestino || vuelo.idCiudadDestino;
+            
             return {
               ...boleto,
               vuelo: vuelo,
-              ciudadOrigen: ciudadOrigen?.['a:NombreCiudad'] ?? 'Ciudad desconocida',
-              ciudadDestino: ciudadDestino?.['a:NombreCiudad'] ?? 'Ciudad desconocida',
+              ciudadOrigen: mapaCiudades[idOrigen] || `Ciudad ID ${idOrigen} no encontrada`,
+              ciudadDestino: mapaCiudades[idDestino] || `Ciudad ID ${idDestino} no encontrada`,
             };
           } else {
+            console.log('⚠️ No se pudo obtener el vuelo para boleto:', boleto);
             return {
               ...boleto,
-              ciudadOrigen: 'Ciudad desconocida',
-              ciudadDestino: 'Ciudad desconocida',
+              ciudadOrigen: 'Vuelo no encontrado',
+              ciudadDestino: 'Vuelo no encontrado',
             };
           }
         } catch (error) {
@@ -212,7 +234,6 @@ const cargarDetallesBoletos = async (boletos) => {
     setBoletosConDetalles(boletosConInfo);
   } catch (error) {
     console.error('Error general en cargarDetallesBoletos:', error);
-    // Aplica normalización también aquí
     const lista = Array.isArray(boletos) ? boletos : [boletos];
     setBoletosConDetalles(lista.map((b) => ({
       ...b,
@@ -622,91 +643,145 @@ const renderItem = ({ item, index }) => (
             </View>
           </View>
         </Modal>
-       <Modal
+        <Modal
   visible={modalAmortVisible}
   transparent
   animationType="fade"
   onRequestClose={() => setModalAmortVisible(false)}
 >
-  <View style={{
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-  }}>
-    <View style={{
-      backgroundColor: '#fff',
-      borderRadius: 16,
-      padding: 20,
-      width: '100%',
-      maxWidth: 600,
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.25,
-      shadowRadius: 10,
-      elevation: 10
-    }}>
-      <Text style={{
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#2f6476',
-        textAlign: 'center',
-        marginBottom: 15
-      }}>
+  <View style={styles.amortModalOverlay}>
+    <View style={[
+      styles.amortModalContent,
+      { 
+        width: isDesktop ? '60%' : isTablet ? '80%' : '95%',
+        maxWidth: isDesktop ? 800 : 600
+      }
+    ]}>
+      <Text style={[
+        styles.amortModalTitle,
+        isLargeScreen && styles.amortModalTitleLarge
+      ]}>
         📑 Tabla de Amortización
       </Text>
 
-      {/* Tabla */}
-      <ScrollView horizontal>
-        <View style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8 }}>
-          {/* Cabecera */}
-          <View style={{
-            flexDirection: 'row',
-            backgroundColor: '#f0f0f0',
-            paddingVertical: 10,
-            paddingHorizontal: 5,
-            borderTopLeftRadius: 8,
-            borderTopRightRadius: 8
-          }}>
-            {["Cuota", "Valor", "Interés", "Capital", "Saldo"].map((title, idx) => (
-              <Text key={idx} style={{ fontWeight: 'bold', width: 80, textAlign: 'center' }}>{title}</Text>
+      {/* Resumen de totales */}
+      <View style={styles.amortTotalesContainer}>
+        <View style={styles.amortTotalItem}>
+          <Text style={styles.amortTotalLabel}>Total a Pagar</Text>
+          <Text style={styles.amortTotalValue}>
+            ${amortizacion.reduce((sum, fila) => sum + fila.valorCuota, 0).toFixed(2)}
+          </Text>
+        </View>
+        <View style={styles.amortTotalItem}>
+          <Text style={styles.amortTotalLabel}>Total Intereses</Text>
+          <Text style={styles.amortTotalValue}>
+            ${amortizacion.reduce((sum, fila) => sum + fila.interesPagado, 0).toFixed(2)}
+          </Text>
+        </View>
+      </View>
+
+      {/* Tabla para pantallas grandes o cards para móvil */}
+      {isLargeScreen ? (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={true}
+          contentContainerStyle={styles.amortScrollContainer}
+        >
+          <View style={styles.amortTable}>
+            {/* Cabecera */}
+            <View style={styles.amortTableHeader}>
+              <Text style={[styles.amortTableColHeader, styles.amortColCuota]}>Cuota</Text>
+              <Text style={[styles.amortTableColHeader, styles.amortColValor]}>Valor</Text>
+              <Text style={[styles.amortTableColHeader, styles.amortColInteres]}>Interés</Text>
+              <Text style={[styles.amortTableColHeader, styles.amortColCapital]}>Capital</Text>
+              <Text style={[styles.amortTableColHeader, styles.amortColSaldo]}>Saldo</Text>
+            </View>
+
+            {/* Filas */}
+            {amortizacion.map((fila, idx) => (
+              <View key={idx} style={[
+                styles.amortTableRow,
+                idx % 2 === 1 && styles.amortTableRowEven
+              ]}>
+                <Text style={[styles.amortTableCol, styles.amortColCuota]}>{fila.numeroCuota}</Text>
+                <Text style={[styles.amortTableCol, styles.amortColValor, styles.amortColBold]}>
+                  ${fila.valorCuota.toFixed(2)}
+                </Text>
+                <Text style={[styles.amortTableCol, styles.amortColInteres]}>
+                  ${fila.interesPagado.toFixed(2)}
+                </Text>
+                <Text style={[styles.amortTableCol, styles.amortColCapital]}>
+                  ${fila.capitalPagado.toFixed(2)}
+                </Text>
+                <Text style={[styles.amortTableCol, styles.amortColSaldo, styles.amortColBold]}>
+                  ${fila.saldo.toFixed(2)}
+                </Text>
+              </View>
             ))}
           </View>
-
-          {/* Filas */}
+        </ScrollView>
+      ) : (
+        // Cards para móvil
+        <ScrollView 
+          style={styles.amortCardsScrollView}
+          showsVerticalScrollIndicator={true}
+        >
           {amortizacion.map((fila, idx) => (
-            <View key={idx} style={{
-              flexDirection: 'row',
-              backgroundColor: idx % 2 === 0 ? '#fff' : '#f9f9f9',
-              paddingVertical: 8,
-              paddingHorizontal: 5,
-              borderBottomWidth: 1,
-              borderBottomColor: '#eee'
-            }}>
-              <Text style={{ width: 80, textAlign: 'center' }}>{fila.numeroCuota}</Text>
-              <Text style={{ width: 80, textAlign: 'center' }}>${fila.valorCuota.toFixed(2)}</Text>
-              <Text style={{ width: 80, textAlign: 'center' }}>${fila.interesPagado.toFixed(2)}</Text>
-              <Text style={{ width: 80, textAlign: 'center' }}>${fila.capitalPagado.toFixed(2)}</Text>
-              <Text style={{ width: 80, textAlign: 'center' }}>${fila.saldo.toFixed(2)}</Text>
+            <View key={idx} style={[
+              styles.amortCard,
+              idx === amortizacion.length - 1 && styles.amortCardLast
+            ]}>
+              <View style={styles.amortCardHeader}>
+                <Text style={styles.amortCardTitle}>Cuota {fila.numeroCuota}</Text>
+                <Text style={styles.amortCardValor}>${fila.valorCuota.toFixed(2)}</Text>
+              </View>
+              <View style={styles.amortCardBody}>
+                <View style={styles.amortCardRow}>
+                  <View style={styles.amortCardItem}>
+                    <Text style={styles.amortCardLabel}>Interés</Text>
+                    <Text style={styles.amortCardValue}>${fila.interesPagado.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.amortCardItem}>
+                    <Text style={styles.amortCardLabel}>Capital</Text>
+                    <Text style={styles.amortCardValue}>${fila.capitalPagado.toFixed(2)}</Text>
+                  </View>
+                </View>
+                <View style={styles.amortCardSaldo}>
+                  <Text style={styles.amortCardSaldoLabel}>Saldo Pendiente</Text>
+                  <Text style={[
+                    styles.amortCardSaldoValue,
+                    fila.saldo === 0 && styles.amortCardSaldoPagado
+                  ]}>
+                    ${fila.saldo.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
             </View>
           ))}
-        </View>
-      </ScrollView>
+        </ScrollView>
+      )}
+
+      {/* Nota informativa */}
+      <View style={styles.amortResumen}>
+        <Text style={styles.amortResumenText}>
+          💡 Pago diferido en {amortizacion.length} cuotas mensuales
+        </Text>
+      </View>
 
       {/* Botón Cerrar */}
       <TouchableOpacity
         onPress={() => setModalAmortVisible(false)}
-        style={{
-          alignSelf: 'center',
-          marginTop: 20,
-          paddingVertical: 8,
-          paddingHorizontal: 20,
-          backgroundColor: '#2f6476',
-          borderRadius: 6
-        }}
+        style={[
+          styles.amortCloseBtn,
+          isLargeScreen && styles.amortCloseBtnLarge
+        ]}
       >
-        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Cerrar</Text>
+        <Text style={[
+          styles.amortCloseText,
+          isLargeScreen && styles.amortCloseTextLarge
+        ]}>
+          Cerrar
+        </Text>
       </TouchableOpacity>
     </View>
   </View>
@@ -728,7 +803,10 @@ const renderItem = ({ item, index }) => (
   );
 }
 
-const styles = StyleSheet.create({
+
+
+  // Estilos corregidos para tabla principal
+ const styles = StyleSheet.create({
   safeArea: { 
     flex: 1, 
     backgroundColor: '#f8f9fa' 
@@ -1023,68 +1101,6 @@ const styles = StyleSheet.create({
   table: {
     minWidth: 600
   },
-  tableHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#35798e',
-    borderRadius: 6,
-    padding: 12,
-    marginBottom: 2,
-    textAlign: 'center'
-  },
-  tableHeaderLarge: {
-    padding: 16
-  },
-  tableColHeader: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
-    textAlign: 'center'
-  },
-  tableRow: {
-    flexDirection: 'row',
-    padding: 12,
-    borderRadius: 4,
-    marginBottom: 1
-  },
-  tableRowEven: {
-    backgroundColor: '#fff'
-  },
-  tableCol: {
-    fontSize: 13,
-    color: '#212529',
-    textAlign: 'center'
-  },
-  tableColNum: {
-    width: 60
-  },
-  tableColDetail: {
-    width: 200,
-    textAlign: 'left',
-    paddingLeft: 8
-  },
-  tableColCant: {
-    width: 60
-  },
-  tableColPrice: {
-    width: 80,
-    fontWeight: '600',
-    color: '#27ae60'
-  },
-  tableColNumBoleto: {
-    width: 120,
-    textAlign: 'center'
-  },
-  tableColDetalleBoleto: {
-    width: 250,
-    textAlign: 'left',
-    paddingLeft: 8
-  },
-  tableColPrecioUnit: {
-    width: 100,
-    fontWeight: '600',
-    color: '#27ae60',
-    textAlign: 'center'
-  },
   totalSection: {
     backgroundColor: '#f8f9fa',
     padding: 16,
@@ -1148,7 +1164,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     margin: 20,
     alignItems: 'center',
-    alignSelf: 'center',         // 👈 centra horizontalmente
+    alignSelf: 'center',
     minWidth: 120   
   },
   closeBtnLarge: {
@@ -1166,156 +1182,386 @@ const styles = StyleSheet.create({
     fontSize: 18
   },
   boletosTableContainer: {
-  backgroundColor: '#fff',
-  borderRadius: 10,
-  padding: 12,
-  marginTop: 10
-},
-boletosTable: {
-  minWidth: 800,
-},menuButtonContainer: {
-  paddingTop: 10,
-  paddingBottom: 30,
-  backgroundColor: '#f8f9fa',
-  alignItems: 'center'
-},
-volverBtn: {
-  backgroundColor: '#4e88a9',
-  paddingVertical: 10,
-  paddingHorizontal: 20,
-  borderRadius: 8,
-  alignItems: 'center',
-  alignSelf: 'center',
-  maxWidth: 220,
-},
-volverText: {
-  color: '#fff',
-  fontWeight: 'bold',
-  fontSize: 16,
-}
-,
-boletosTableHeader: {
-  flexDirection: 'row',
-  backgroundColor: '#35798e',
-  paddingVertical: 10,
-  paddingHorizontal: 6,
-  borderTopLeftRadius: 8,
-  borderTopRightRadius: 8
-},
-boletosTableColHeader: {
-  color: '#fff',
-  fontWeight: 'bold',
-  fontSize: 14,
-  textAlign: 'center'
-},
-boletosTableRow: {
-  flexDirection: 'row',
-  paddingVertical: 10,
-  paddingHorizontal: 6,
-  borderBottomWidth: 1,
-  borderBottomColor: '#dee2e6'
-},
-boletosTableRowEven: {
-  backgroundColor: '#f8f9fa'
-},
-boletosTableCol: {
-  fontSize: 13,
-  color: '#212529',
-  textAlign: 'center'
-},
-boletosColNum: {
-  width: 50
-},
-boletosColBoleto: {
-  width: 130
-},
-boletosColRuta: {
-  width: 220
-},
-boletosColFecha: {
-  width: 120
-},
-boletosColCant: {
-  width: 60
-},
-boletosColPrecio: {
-  width: 100,
-  fontWeight: 'bold',
-  color: '#27ae60'
-},
-modalCloseButton: {
-  backgroundColor: '#ccc',
-  padding: 12,
-  borderRadius: 8,
-  alignItems: 'center',
-  marginTop: 20, // <-- importante para separarlo visualmente
-  marginBottom: 10,
-},
-
-
-// versión móvil: tarjetas
-boletosCardContainer: {
-  gap: 12
-},
-boletoCard: {
-  backgroundColor: '#fff',
-  padding: 14,
-  borderRadius: 10,
-  borderWidth: 1,
-  borderColor: '#e0e0e0',
-  marginBottom: 10
-},
-boletoCardHeader: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  marginBottom: 10
-},
-boletoCardTitle: {
-  fontSize: 16,
-  fontWeight: 'bold',
-  color: '#35798e'
-},
-boletoCardNumber: {
-  fontSize: 14,
-  fontWeight: 'bold',
-  color: '#6c757d'
-},
-boletoCardContent: {
-  gap: 8
-},
-boletoCardRow: {
-  flexDirection: 'row',
-  justifyContent: 'space-between',
-  alignItems: 'center'
-},
-boletoCardLabel: {
-  fontSize: 14,
-  fontWeight: '500',
-  color: '#495057'
-},
-boletoCardValue: {
-  fontSize: 14,
-  fontWeight: '600',
-  color: '#212529'
-},
-boletoCardPrice: {
-  fontSize: 14,
-  fontWeight: 'bold',
-  color: '#27ae60'
-},
-verAmortBtn: {
-  marginTop: 10,
-  padding: 12,
-  backgroundColor: '#35798e',
-  borderRadius: 8,
-  alignItems: 'center'
-},
-verAmortText: {
-  color: '#fff',
-  fontWeight: 'bold',
-  fontSize: 15
-},
-
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 10
+  },
+  boletosTable: {
+    minWidth: 800,
+  },
+  menuButtonContainer: {
+    paddingTop: 10,
+    paddingBottom: 30,
+    backgroundColor: '#f8f9fa',
+    alignItems: 'center'
+  },
+  volverBtn: {
+    backgroundColor: '#4e88a9',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    alignSelf: 'center',
+    maxWidth: 220,
+  },
+  volverText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  boletosTableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#35798e',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8
+  },
+  boletosTableColHeader: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+    textAlign: 'center'
+  },
+  boletosTableRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#dee2e6'
+  },
+  boletosTableRowEven: {
+    backgroundColor: '#f8f9fa'
+  },
+  boletosTableCol: {
+    fontSize: 13,
+    color: '#212529',
+    textAlign: 'center'
+  },
+  boletosColNum: {
+    width: 50
+  },
+  boletosColBoleto: {
+    width: 130
+  },
+  boletosColRuta: {
+    width: 220
+  },
+  boletosColFecha: {
+    width: 120
+  },
+  boletosColCant: {
+    width: 60
+  },
+  boletosColPrecio: {
+    width: 100,
+    fontWeight: 'bold',
+    color: '#27ae60'
+  },
+  boletosCardContainer: {
+    gap: 12
+  },
+  boletoCard: {
+    backgroundColor: '#fff',
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 10
+  },
+  boletoCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10
+  },
+  boletoCardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#35798e'
+  },
+  boletoCardNumber: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#6c757d'
+  },
+  boletoCardContent: {
+    gap: 8
+  },
+  boletoCardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  boletoCardLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#495057'
+  },
+  boletoCardValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#212529'
+  },
+  boletoCardPrice: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#27ae60'
+  },
+  verAmortBtn: {
+    marginTop: 10,
+    padding: 12,
+    backgroundColor: '#35798e',
+    borderRadius: 8,
+    alignItems: 'center'
+  },
+  verAmortText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 15
+  },
+  
+  // Estilos para modal de amortización mejorado
+  amortModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  amortModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 15,
+    maxHeight: '90%',
+  },
+  amortModalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2f6476',
+    textAlign: 'center',
+    paddingTop: 24,
+    paddingBottom: 16,
+    paddingHorizontal: 20
+  },
+  amortModalTitleLarge: {
+    fontSize: 26,
+    paddingTop: 28,
+    paddingBottom: 20
+  },
+  amortTotalesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    backgroundColor: '#e8f4f8',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 10,
+  },
+  amortTotalItem: {
+    alignItems: 'center',
+  },
+  amortTotalLabel: {
+    fontSize: 14,
+    color: '#6c757d',
+    marginBottom: 4
+  },
+  amortTotalValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2f6476'
+  },
+  amortScrollContainer: {
+    paddingHorizontal: 20,
+    alignItems: 'center'
+  },
+  amortTable: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#dee2e6',
+    minWidth: 500,
+  },
+  amortTableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#35798e',
+    paddingVertical: 12,
+    paddingHorizontal: 8
+  },
+  amortTableColHeader: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+    textAlign: 'center'
+  },
+  amortTableRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: '#fff'
+  },
+  amortTableRowEven: {
+    backgroundColor: '#f8f9fa'
+  },
+  amortTableCol: {
+    fontSize: 14,
+    color: '#212529',
+    textAlign: 'center'
+  },
+  amortColCuota: {
+    width: 60,
+    fontWeight: 'bold',
+    color: '#35798e'
+  },
+  amortColValor: {
+    width: 110
+  },
+  amortColInteres: {
+    width: 100
+  },
+  amortColCapital: {
+    width: 100
+  },
+  amortColSaldo: {
+    width: 110
+  },
+  amortColBold: {
+    fontWeight: '600'
+  },
+  
+  // Estilos para cards móviles de amortización
+  amortCardsScrollView: {
+    maxHeight: 400,
+    paddingHorizontal: 20
+  },
+  amortCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
+  },
+  amortCardLast: {
+    borderColor: '#27ae60',
+    borderWidth: 2
+  },
+  amortCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef'
+  },
+  amortCardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#35798e'
+  },
+  amortCardValor: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#27ae60'
+  },
+  amortCardBody: {
+    padding: 16
+  },
+  amortCardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12
+  },
+  amortCardItem: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  amortCardLabel: {
+    fontSize: 13,
+    color: '#6c757d',
+    marginBottom: 4
+  },
+  amortCardValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#212529'
+  },
+  amortCardSaldo: {
+    backgroundColor: '#f8f9fa',
+    marginTop: 8,
+    marginHorizontal: -16,
+    marginBottom: -16,
+    padding: 12,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#e9ecef'
+  },
+  amortCardSaldoLabel: {
+    fontSize: 13,
+    color: '#6c757d',
+    marginBottom: 4
+  },
+  amortCardSaldoValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#495057'
+  },
+  amortCardSaldoPagado: {
+    color: '#27ae60'
+  },
+  amortResumen: {
+    backgroundColor: '#fff3cd',
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ffeaa7'
+  },
+  amortResumenText: {
+    fontSize: 14,
+    color: '#856404',
+    textAlign: 'center',
+    fontWeight: '600'
+  },
+  amortCloseBtn: {
+    backgroundColor: '#4e88a9',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+    margin: 20,
+    alignSelf: 'center',
+    minWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4
+  },
+  amortCloseBtnLarge: {
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    minWidth: 140
+  },
+  amortCloseText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+    textAlign: 'center'
+  },
+  amortCloseTextLarge: {
+    fontSize: 18
+  },
 });
-    
