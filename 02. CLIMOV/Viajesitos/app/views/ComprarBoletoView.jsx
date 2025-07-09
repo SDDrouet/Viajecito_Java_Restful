@@ -30,6 +30,8 @@ export default function ComprarBoletoView() {
   const isMobile = width < 768;
   const isTablet = width >= 768 && width < 1024;
   const isDesktop = width >= 1024;
+  // Configuración de restricciones
+const RESTRICCION_MISMO_DIA = true; // Activar/desactivar restricción de vuelos el mismo día
 
   const [usuario, setUsuario] = useState(null);
   const [ciudades, setCiudades] = useState([]);
@@ -159,6 +161,13 @@ function calcularAmortizacion(monto, cuotas, tasaAnual = 16.5) {
     const ciudad = ciudades.find(c => c.codigoCiudad === codigo);
     return ciudad ? ciudad.nombreCiudad : codigo;
   };
+  // Función para formatear fecha de manera amigable
+const formatearFecha = (fechaISO) => {
+  const [año, mes, dia] = fechaISO.split('-');
+  const meses = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 
+                 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  return `${parseInt(dia)} de ${meses[parseInt(mes) - 1]} de ${año}`;
+};
 
   // Agregar vuelo al carrito
 // Funciones del carrito mejoradas con validaciones
@@ -173,6 +182,26 @@ const agregarAlCarrito = (vuelo, cantidad) => {
       `Por favor ingrese una cantidad válida (1-${maxPermitido})`
     );
     return;
+  }
+
+  // Extraer fecha del vuelo actual (sin hora)
+  const fechaVueloActual = vuelo.HoraSalida.split('T')[0];
+  
+  // Verificar si ya hay vuelos del mismo día en el carrito
+  if (RESTRICCION_MISMO_DIA) {
+    const vueloMismoDia = carrito.find(item => {
+      const fechaItemCarrito = item.vuelo.HoraSalida.split('T')[0];
+      return fechaItemCarrito === fechaVueloActual && item.idVuelo !== vuelo.IdVuelo;
+    });
+    
+    if (vueloMismoDia) {
+      Alert.alert(
+        '⚠️ Restricción de fecha',
+        `No se pueden comprar múltiples vuelos en el mismo día.\n\nYa tienes un vuelo programado para el ${formatearFecha(fechaVueloActual)}:\n✈️ ${vueloMismoDia.vuelo.CodigoVuelo} (${getNombreCiudad(vueloMismoDia.vuelo.origen)} → ${getNombreCiudad(vueloMismoDia.vuelo.destino)})`,
+        [{ text: 'Entendido', style: 'default' }]
+      );
+      return;
+    }
   }
 
   const vueloEnCarrito = carrito.find(item => item.idVuelo === vuelo.IdVuelo);
@@ -204,19 +233,6 @@ const agregarAlCarrito = (vuelo, cantidad) => {
     '¡Agregado al carrito!', 
     `${cantidad} boleto${cantidad !== 1 ? 's' : ''} del vuelo ${vuelo.CodigoVuelo}`
   );
-};
-const removerDelCarrito = (idVuelo) => {
-  console.log('Intentando eliminar idVuelo:', idVuelo, typeof idVuelo);
-  
-  setCarrito(prevCarrito => {
-    const nuevoCarrito = prevCarrito.filter(item => {
-      console.log('Comparando:', item.idVuelo, typeof item.idVuelo, 'vs', idVuelo, typeof idVuelo);
-      // Asegurar que ambos sean del mismo tipo
-      return String(item.idVuelo) !== String(idVuelo);
-    });
-    console.log('Items antes:', prevCarrito.length, 'Items después:', nuevoCarrito.length);
-    return nuevoCarrito;
-  });
 };
 
 const actualizarCantidadCarrito = (idVuelo, nuevaCantidad) => {
@@ -431,7 +447,14 @@ const limpiarItemCarrito = (idVuelo) => {
 // Componente VueloItem mejorado con stepper y validaciones
 const VueloItem = ({ vuelo }) => {
   const [cantidad, setCantidad] = useState(1);
-  const maxBoletos = Math.min(vuelo.Disponibles, 20); // Máximo 20 o disponibles
+  const maxBoletos = Math.min(vuelo.Disponibles, 20);
+  
+  // Verificar si hay restricción por fecha
+  const fechaVueloActual = vuelo.HoraSalida.split('T')[0];
+  const tieneRestriccionFecha = RESTRICCION_MISMO_DIA && carrito.some(item => {
+    const fechaItemCarrito = item.vuelo.HoraSalida.split('T')[0];
+    return fechaItemCarrito === fechaVueloActual && item.idVuelo !== vuelo.IdVuelo;
+  });
   
   const incrementarCantidad = () => {
     if (cantidad < maxBoletos) {
@@ -446,13 +469,27 @@ const VueloItem = ({ vuelo }) => {
   };
   
   const manejarAgregar = () => {
+    if (tieneRestriccionFecha) {
+      const vueloConflicto = carrito.find(item => {
+        const fechaItemCarrito = item.vuelo.HoraSalida.split('T')[0];
+        return fechaItemCarrito === fechaVueloActual && item.idVuelo !== vuelo.IdVuelo;
+      });
+      
+      Alert.alert(
+        '⚠️ Restricción de fecha',
+        `No se pueden comprar múltiples vuelos en el mismo día.\n\nYa tienes un vuelo programado para el ${formatearFecha(fechaVueloActual)}:\n✈️ ${vueloConflicto.vuelo.CodigoVuelo} (${getNombreCiudad(vueloConflicto.vuelo.origen)} → ${getNombreCiudad(vueloConflicto.vuelo.destino)})`,
+        [{ text: 'Entendido', style: 'default' }]
+      );
+      return;
+    }
+    
     if (cantidad <= 0 || cantidad > maxBoletos) {
       Alert.alert('Error', `Cantidad inválida. Máximo permitido: ${maxBoletos}`);
       return;
     }
     
     agregarAlCarrito(vuelo, cantidad);
-    setCantidad(1); // Resetear después de agregar
+    setCantidad(1);
   };
 
   const fechaVuelo = vuelo.HoraSalida.split('T')[0];
@@ -462,7 +499,8 @@ const VueloItem = ({ vuelo }) => {
     <View style={[
       styles.card,
       isTablet && styles.cardTablet,
-      isDesktop && styles.cardDesktop
+      isDesktop && styles.cardDesktop,
+      tieneRestriccionFecha && styles.cardRestricted
     ]}>
       <Text style={[
         styles.title,
@@ -522,50 +560,59 @@ const VueloItem = ({ vuelo }) => {
         </View>
       </View>
 
-      {/* Información de disponibilidad */}
       <View style={styles.disponibilidadInfo}>
         <Text style={styles.disponibilidadText}>
           Máximo por compra: {maxBoletos} boleto{maxBoletos !== 1 ? 's' : ''}
         </Text>
       </View>
 
-      {/* Sistema de stepper mejorado */}
-      <View style={styles.stepperContainer}>
-        <Text style={[
-          styles.stepperLabel,
-          isDesktop && { fontSize: 18 }
-        ]}>Cantidad:</Text>
-        
-        <TouchableOpacity
-          style={[
-            styles.stepperBtn,
-            cantidad <= 1 && styles.stepperBtnDisabled
-          ]}
-          onPress={decrementarCantidad}
-          disabled={cantidad <= 1}
-        >
-          <Text style={styles.stepperText}>−</Text>
-        </TouchableOpacity>
-        
-        <Text style={[
-          styles.stepperCount,
-          isDesktop && { fontSize: 20, minWidth: 80 }
-        ]}>{cantidad}</Text>
-        
-        <TouchableOpacity
-          style={[
-            styles.stepperBtn,
-            cantidad >= maxBoletos && styles.stepperBtnDisabled
-          ]}
-          onPress={incrementarCantidad}
-          disabled={cantidad >= maxBoletos}
-        >
-          <Text style={styles.stepperText}>+</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Mostrar restricción de fecha si existe */}
+      {tieneRestriccionFecha && (
+        <View style={styles.restriccionFecha}>
+          <Text style={styles.restriccionFechaText}>
+            ⚠️ Ya tienes un vuelo programado para esta fecha
+          </Text>
+        </View>
+      )}
 
-      {/* Indicador de límite si aplica */}
-      {maxBoletos < vuelo.Disponibles && (
+      {/* Sistema de stepper mejorado - SOLO si no hay restricción */}
+      {!tieneRestriccionFecha && (
+        <View style={styles.stepperContainer}>
+          <Text style={[
+            styles.stepperLabel,
+            isDesktop && { fontSize: 18 }
+          ]}>Cantidad:</Text>
+          
+          <TouchableOpacity
+            style={[
+              styles.stepperBtn,
+              cantidad <= 1 && styles.stepperBtnDisabled
+            ]}
+            onPress={decrementarCantidad}
+            disabled={cantidad <= 1}
+          >
+            <Text style={styles.stepperText}>−</Text>
+          </TouchableOpacity>
+          
+          <Text style={[
+            styles.stepperCount,
+            isDesktop && { fontSize: 20, minWidth: 80 }
+          ]}>{cantidad}</Text>
+          
+          <TouchableOpacity
+            style={[
+              styles.stepperBtn,
+              cantidad >= maxBoletos && styles.stepperBtnDisabled
+            ]}
+            onPress={incrementarCantidad}
+            disabled={cantidad >= maxBoletos}
+          >
+            <Text style={styles.stepperText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {maxBoletos < vuelo.Disponibles && !tieneRestriccionFecha && (
         <View style={styles.limiteBoletos}>
           <Text style={styles.limiteBoletosText}>
             ⚠️ Límite de 20 boletos por compra
@@ -576,14 +623,20 @@ const VueloItem = ({ vuelo }) => {
       <TouchableOpacity 
         style={[
           styles.btnAgregar,
-          isDesktop && { paddingVertical: 18 }
+          isDesktop && { paddingVertical: 18 },
+          tieneRestriccionFecha && styles.btnAgregarDisabled
         ]} 
         onPress={manejarAgregar}
+        disabled={tieneRestriccionFecha}
       >
         <Text style={[
           styles.btnText,
           isDesktop && { fontSize: 18 }
-        ]}>🛒 Agregar {cantidad} boleto{cantidad !== 1 ? 's' : ''} al carrito</Text>
+        ]}>
+          {tieneRestriccionFecha 
+            ? '🚫 No disponible - Vuelo mismo día' 
+            : `🛒 Agregar ${cantidad} boleto${cantidad !== 1 ? 's' : ''} al carrito`}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -769,25 +822,32 @@ const VueloItem = ({ vuelo }) => {
                   isDesktop && styles.carritoItemDesktop
                 ]}>
                   <View style={styles.carritoInfo}>
-                    <Text style={[
-                      styles.carritoVuelo,
-                      isDesktop && { fontSize: 18 }
-                    ]}>✈️ {item.vuelo.CodigoVuelo}</Text>
-                    
-                    <Text style={[
-                      styles.carritoRuta,
-                      isDesktop && { fontSize: 15 }
-                    ]}>
-                      {getNombreCiudad(item.vuelo.origen)} → {getNombreCiudad(item.vuelo.destino)}
-                    </Text>
-                    
-                    <Text style={[
-                      styles.carritoSubtotal,
-                      isDesktop && { fontSize: 16 }
-                    ]}>
-                      {item.cantidad} × ${item.vuelo.Valor} = ${(parseFloat(item.vuelo.Valor) * item.cantidad).toFixed(2)}
-                    </Text>
-                  </View>
+  <Text style={[
+    styles.carritoVuelo,
+    isDesktop && { fontSize: 18 }
+  ]}>✈️ {item.vuelo.CodigoVuelo}</Text>
+  
+  <Text style={[
+    styles.carritoRuta,
+    isDesktop && { fontSize: 15 }
+  ]}>
+    {getNombreCiudad(item.vuelo.origen)} → {getNombreCiudad(item.vuelo.destino)}
+  </Text>
+  
+  <Text style={[
+    styles.carritoFecha,
+    isDesktop && { fontSize: 14 }
+  ]}>
+    📅 {formatearFecha(item.vuelo.HoraSalida.split('T')[0])} - {item.vuelo.HoraSalida.split('T')[1].substring(0, 5)}
+  </Text>
+  
+  <Text style={[
+    styles.carritoSubtotal,
+    isDesktop && { fontSize: 16 }
+  ]}>
+    {item.cantidad} × ${item.vuelo.Valor} = ${(parseFloat(item.vuelo.Valor) * item.cantidad).toFixed(2)}
+  </Text>
+</View>
                   
                   <View style={styles.carritoControles}>
                     <TouchableOpacity
@@ -2138,5 +2198,40 @@ modalMensajeSuccess: {
 modalMensajeError: {
   borderTopWidth: 4,
   borderTopColor: '#dc3545',
+},
+// Estilos para restricción de fecha
+cardRestricted: {
+  opacity: 0.8,
+  borderWidth: 2,
+  borderColor: '#ffc107',
+  backgroundColor: '#fffbf0',
+},
+
+restriccionFecha: {
+  backgroundColor: '#fff3cd',
+  padding: 12,
+  borderRadius: 8,
+  marginVertical: 8,
+  borderLeftWidth: 4,
+  borderLeftColor: '#ffc107',
+},
+
+restriccionFechaText: {
+  fontSize: 14,
+  color: '#856404',
+  textAlign: 'center',
+  fontWeight: '600',
+},
+
+btnAgregarDisabled: {
+  backgroundColor: '#6c757d',
+  opacity: 0.7,
+},
+
+carritoFecha: {
+  fontSize: 12,
+  color: '#0d6efd',
+  marginBottom: 4,
+  fontWeight: '500',
 },
 })

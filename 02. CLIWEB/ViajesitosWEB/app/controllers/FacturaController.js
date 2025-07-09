@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:8080/aerolineas_condor_server/api';
+const BASE_URL = 'http://10.69.99.199:8080/aerolineas_condor_server/api';
 
 // ────────────────────────────────────────────────
 // 🔹 1. BOLETOS
