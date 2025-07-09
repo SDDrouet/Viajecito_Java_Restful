@@ -14,6 +14,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 
 public class ComprarBoletosView {
@@ -34,6 +36,7 @@ public class ComprarBoletosView {
 
         List<VueloCompra> listaVuelos = new ArrayList<>();
         BigDecimal total = BigDecimal.ZERO;
+        List<Vuelo> vuelosAgregados = new ArrayList<>();
 
         do {
             int origenIdx = pedirIndiceCiudad("origen", ciudades, -1);
@@ -51,6 +54,26 @@ public class ComprarBoletosView {
 
             int vueloIdx = pedirIndiceVuelo(vuelos);
             Vuelo vueloSeleccionado = vuelos.get(vueloIdx);
+            
+            boolean vueloYaAgregado = false;
+
+            for (Vuelo vuelorow : vuelosAgregados) {
+                LocalDate fechaExistente = vuelorow.getHoraSalida().toInstant()
+                        .atZone(ZoneId.systemDefault()).toLocalDate();
+
+                LocalDate fechaNuevoVuelo = vueloSeleccionado.getHoraSalida().toInstant()
+                        .atZone(ZoneId.systemDefault()).toLocalDate();
+
+                if (fechaExistente.equals(fechaNuevoVuelo)) {
+                    System.out.println("No se puede agregar otro vuelo en la misma fecha.");
+                    vueloYaAgregado = true;
+                    break; // salta del for, pero no del do-while
+                }
+            }
+
+            if (vueloYaAgregado) {
+                continue; // salta al siguiente ciclo del do-while
+            }
 
             int cantidad = pedirCantidadBoletos(vueloSeleccionado);
 

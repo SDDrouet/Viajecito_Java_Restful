@@ -25,7 +25,7 @@ public class VuelosClient {
 
     private WebTarget webTarget;
     private Client client;
-    private static final String BASE_URI = "http://localhost:8080/aerolineas_condor_server/api";
+    private static final String BASE_URI = "http://10.69.99.199:8080/aerolineas_condor_server/api";
 
     public VuelosClient() {
         client = jakarta.ws.rs.client.ClientBuilder.newClient();
